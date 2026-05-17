@@ -207,7 +207,7 @@ public class AdvisorPipeline {
     public static void main(String[] args) {
         AdvisorPipeline pipeline = new AdvisorPipeline();
 
-        String useCase;
+        String useCase = "";
 
         if (args.length > 0) {
             // Accept use case as command-line argument
@@ -216,7 +216,9 @@ public class AdvisorPipeline {
             // Interactive prompt
             System.out.print("Describe your AI use case: ");
             Scanner scanner = new Scanner(System.in);
-            useCase = scanner.nextLine().trim();
+            if (scanner.hasNextLine()) {
+                useCase = scanner.nextLine().trim();
+            }
             if (useCase.isBlank()) {
                 useCase = "RAG chatbot over internal docs, 500 queries/day, under 2s latency, startup budget";
                 System.out.println("Using default: " + useCase);

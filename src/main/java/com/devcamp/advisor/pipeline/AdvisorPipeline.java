@@ -5,6 +5,7 @@ import com.devcamp.advisor.agent.IntakeAgent;
 import com.devcamp.advisor.agent.RecommendationAgent;
 import com.devcamp.advisor.agent.SearchAgent;
 import com.devcamp.advisor.model.AgentModels.*;
+import com.devcamp.advisor.model.AgentRequests.*;
 import com.devcamp.advisor.util.DefaultModel;
 import com.devcamp.advisor.util.GoogleSearchClient;
 import org.slf4j.Logger;
@@ -36,24 +37,28 @@ public class AdvisorPipeline {
 
     // ── Shared infrastructure ────────────────────────────────────────────────
     private final DefaultModel       defaultModel;
-    private final GoogleSearchClient googleSearchClient;
+    private final okhttp3.OkHttpClient httpClient;
 
-    // ── Agents ───────────────────────────────────────────────────────────────
-    private final IntakeAgent          intakeAgent;
-    private final SearchAgent          searchAgent;
-    private final AnalysisAgent        analysisAgent;
-    private final RecommendationAgent  recommendationAgent;
+    // ── Agent URLs ──────────────────────────────────────────────────────────
+    private final String intakeUrl;
+    private final String searchUrl;
+    private final String analysisUrl;
+    private final String recommendationUrl;
 
     public AdvisorPipeline() {
-        // Shared clients — constructed once, injected into agents (like Spring beans)
-        this.defaultModel       = new DefaultModel();
-        this.googleSearchClient = new GoogleSearchClient();
+        this.defaultModel = new DefaultModel();
+        this.httpClient = new okhttp3.OkHttpClient();
 
-        // Agent instantiation with dependency injection
-        this.intakeAgent         = new IntakeAgent(defaultModel);
-        this.searchAgent         = new SearchAgent(defaultModel, googleSearchClient);
-        this.analysisAgent       = new AnalysisAgent(defaultModel);
-        this.recommendationAgent = new RecommendationAgent(defaultModel);
+        // Load URLs from env vars or use localhost defaults for local dev
+        this.intakeUrl         = getEnv("INTAKE_AGENT_URL",         "http://localhost:8080/intake/process");
+        this.searchUrl         = getEnv("SEARCH_AGENT_URL",         "http://localhost:8080/search/process");
+        this.analysisUrl       = getEnv("ANALYSIS_AGENT_URL",       "http://localhost:8080/analysis/process");
+        this.recommendationUrl = getEnv("RECOMMENDATION_AGENT_URL", "http://localhost:8080/recommendation/process");
+    }
+
+    private String getEnv(String name, String defaultValue) {
+        String val = System.getenv(name);
+        return (val != null && !val.isBlank()) ? val : defaultValue;
     }
 
     /**
@@ -71,7 +76,9 @@ public class AdvisorPipeline {
 
         // ── AGENT 1: Intake ──────────────────────────────────────────────────
         System.out.println("\n[1/4] INTAKE AGENT — parsing requirements...");
-        UseCaseRequirements requirements = intakeAgent.process(useCase);
+        IntakeRequest intakeReq = new IntakeRequest();
+        intakeReq.useCase = useCase;
+        UseCaseRequirements requirements = post(intakeUrl, intakeReq, UseCaseRequirements.class);
         System.out.println("  Task:     " + requirements.primaryTask);
         System.out.println("  Latency:  " + requirements.latencySensitivity);
         System.out.println("  Cost:     " + requirements.costSensitivity);
@@ -79,7 +86,7 @@ public class AdvisorPipeline {
 
         // ── AGENT 2: Search ──────────────────────────────────────────────────
         System.out.println("\n[2/4] SEARCH AGENT — querying Google Custom Search API...");
-        SearchFindings findings = searchAgent.process(requirements);
+        SearchFindings findings = post(searchUrl, requirements, SearchFindings.class);
         System.out.println("  Models found: " +
                 (findings.modelsFound != null ? findings.modelsFound.size() : 0));
         if (findings.modelsFound != null) {
@@ -90,13 +97,20 @@ public class AdvisorPipeline {
 
         // ── AGENT 3: Analysis ────────────────────────────────────────────────
         System.out.println("\n[3/4] ANALYSIS AGENT — scoring models against requirements...");
-        ScoredAnalysis analysis = analysisAgent.process(requirements, findings);
+        AnalysisRequest analysisReq = new AnalysisRequest();
+        analysisReq.requirements = requirements;
+        analysisReq.findings = findings;
+        ScoredAnalysis analysis = post(analysisUrl, analysisReq, ScoredAnalysis.class);
         System.out.println("  Top 3: " + analysis.top3Names);
         System.out.println("  " + analysis.diversityCheck);
 
         // ── AGENT 4: Recommendation ──────────────────────────────────────────
         System.out.println("\n[4/4] RECOMMENDATION AGENT — synthesising final recommendation...");
-        Recommendation recommendation = recommendationAgent.process(requirements, findings, analysis);
+        RecommendationRequest recReq = new RecommendationRequest();
+        recReq.requirements = requirements;
+        recReq.findings = findings;
+        recReq.analysis = analysis;
+        Recommendation recommendation = post(recommendationUrl, recReq, Recommendation.class);
 
         long elapsed = System.currentTimeMillis() - start;
         System.out.println("\n" + "═".repeat(70));
@@ -105,6 +119,26 @@ public class AdvisorPipeline {
         System.out.println("═".repeat(70));
 
         return recommendation;
+    }
+
+    private <T> T post(String url, Object body, Class<T> responseClass) {
+        String json = defaultModel.toJson(body);
+        okhttp3.RequestBody reqBody = okhttp3.RequestBody.create(
+                json, okhttp3.MediaType.get("application/json; charset=utf-8"));
+        
+        okhttp3.Request request = new okhttp3.Request.Builder()
+                .url(url)
+                .post(reqBody)
+                .build();
+
+        try (okhttp3.Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new RuntimeException("Failed to call agent at " + url + ": " + response);
+            }
+            return defaultModel.fromJson(response.body().string(), responseClass);
+        } catch (Exception e) {
+            throw new RuntimeException("Error calling agent at " + url, e);
+        }
     }
 
     // ── Console rendering ────────────────────────────────────────────────────

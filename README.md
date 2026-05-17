@@ -1,83 +1,94 @@
 # AI Model Advisor - Java Multi-Agent Pipeline
 
 4-agent system that uses **Google Custom Search API** (live web) + **Gemini 2.5 Flash** (reasoning)
-to recommend the best AI model for any use case. No hardcoded model database.
+to recommend the best AI model for any use case. Refactored into a **Multi-Agent microservice architecture** for Cloud Run.
 
 ```
 IntakeAgent  ->  SearchAgent  ->  AnalysisAgent  ->  RecommendationAgent
     [1]             [2]               [3]                 [4]
  Parse input   Google Search      Score models        Final output
- + generate     fetch live          against             with primary,
-   queries       results           requirements        runner-up, budget
+ [REST API]      [REST API]         [REST API]          [REST API]
 ```
+
+## Architecture Refactor
+
+The project has been refactored from a single monolithic application into a multi-agent system where each agent is an independent REST service.
+
+- **A2A Protocol**: Agents communicate via typed JSON payloads over HTTP POST.
+- **Microservices**: Each agent can be run as a standalone service (using Spring Boot).
+- **Orchestrator**: `AdvisorPipeline.java` remains the entry point, coordinating the multi-agent chain via HTTP calls.
+- **Cloud Portable**: Containerized with Docker and ready for Google Cloud Run.
 
 ## Prerequisites
 
 - Java 17+
-- Gradle
+- Gradle 9+
 - Google API key with Gemini API access
 - Google Cloud project with Custom Search JSON API enabled
 - A configured Google Programmable Search Engine
 
-## Setup
+## Running the Multi-Agent App
 
-### 1. Google API Key
+### 1. Start the Agents (Local)
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com)
-2. Create a project and enable "Generative Language API" and "Custom Search JSON API"
-3. Create an API key under APIs & Services -> Credentials
+You can run the entire system locally using the Spring Boot application. By default, it exposes all agent endpoints.
 
 ```bash
-export GOOGLE_API_KEY=AIzaSy...
+gradle bootRun
 ```
 
-> Note: Google Custom Search JSON API is closed to new customers as of 2026.
-> Existing keys continue to work through January 2027.
-> New projects should evaluate [Vertex AI Search](https://cloud.google.com/vertex-ai-search)
+This starts the server on `http://localhost:8080`.
 
-### 2. Google Programmable Search Engine ID
+### 2. Run the Pipeline (Entry Point)
 
-1. Go to [Programmable Search Engine](https://programmablesearchengine.google.com)
-2. Create a new engine and set it to "Search the entire web"
-3. Copy the Search Engine ID (cx value)
-
-```bash
-export GOOGLE_SEARCH_ENGINE_ID=a1b2c3d4e5f6...
-```
-
-## Run
+With the agents running, use the `AdvisorPipeline` to drive the workflow.
 
 ```bash
 # Interactive mode
-./gradlew run
-
-# With use case as argument
-./gradlew run --args="RAG chatbot over internal docs, 500 queries/day, startup budget"
-
-# Build fat jar and run
-./gradlew jar
-java -jar build/libs/ai-model-advisor-1.0.0.jar "Your use case here"
+java -cp build/libs/ai-model-advisor-1.0.0.jar com.devcamp.advisor.pipeline.AdvisorPipeline
 ```
 
-## Architecture
+## Deployment to Google Cloud Run
+
+Each agent can be deployed as an individual Cloud Run service.
+
+### Dockerize
+
+```bash
+docker build -t gcr.io/[PROJECT_ID]/advisor-agent .
+```
+
+### Deploying Individual Agents
+
+Set the `AGENT_TYPE` environment variable to restrict a service to a specific agent's functionality.
+
+1. **Intake Agent**: `gcloud run deploy intake --image ... --set-env-vars AGENT_TYPE=intake`
+2. **Search Agent**: `gcloud run deploy search --image ... --set-env-vars AGENT_TYPE=search`
+3. **Analysis Agent**: `gcloud run deploy analysis --image ... --set-env-vars AGENT_TYPE=analysis`
+4. **Recommendation Agent**: `gcloud run deploy recommendation --image ... --set-env-vars AGENT_TYPE=recommendation`
+
+### Configuring the Pipeline
+
+Once deployed, set the following environment variables for the service running the `AdvisorPipeline`:
+
+- `INTAKE_AGENT_URL`
+- `SEARCH_AGENT_URL`
+- `ANALYSIS_AGENT_URL`
+- `RECOMMENDATION_AGENT_URL`
+
+## Architecture Components
 
 | File | Role |
 |------|------|
-| `AppConfig.java` | Centralised config from env vars |
-| `DefaultModel.java` | Shared Google Gemini 2.5 Flash wrapper |
-| `GoogleSearchClient.java` | HTTP client for Google Custom Search API |
-| `IntakeAgent.java` | Agent 1 - parse use case to structured requirements + search queries |
-| `SearchAgent.java` | Agent 2 - execute Google searches to discovered model candidates |
-| `AnalysisAgent.java` | Agent 3 - score candidates against requirements |
-| `RecommendationAgent.java` | Agent 4 - final synthesis to recommendation |
-| `AdvisorPipeline.java` | Orchestrator - wires agents, drives A2A handoffs |
-| `AgentModels.java` | Typed DTOs passed between agents |
+| `AdvisorApplication.java` | Spring Boot main entry point for agents |
+| `IntakeController.java` | REST Controller for Agent 1 |
+| `SearchController.java` | REST Controller for Agent 2 |
+| `AnalysisController.java` | REST Controller for Agent 3 |
+| `RecommendationController.java` | REST Controller for Agent 4 |
+| `AdvisorPipeline.java` | Orchestrator - coordinates HTTP calls between agents |
+| `AgentRequests.java` | Multi-input request DTOs for the A2A protocol |
+| `AgentModels.java` | Core data contracts |
+| `Dockerfile` | Multi-agent container definition |
 
 ## API Costs
-
-| Service | Cost |
-|---------|------|
-| Google Custom Search | Free: 100 queries/day. Paid: $5 per 1000 queries |
-| Gemini 2.5 Flash | Depends on current Google AI pricing and token usage |
-
-One pipeline run = 4 Google queries + 4 Gemini API calls.
+... (rest of the content)

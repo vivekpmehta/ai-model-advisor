@@ -44,6 +44,10 @@ public class DefaultModel {
         return gson.toJson(value);
     }
 
+    public <T> T fromJson(String json, Class<T> type) {
+        return gson.fromJson(json, type);
+    }
+
     /**
      * Call Gemini with a system prompt + user message.
      * Returns the raw text response.

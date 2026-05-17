@@ -1,94 +1,225 @@
-# AI Model Advisor - Java Multi-Agent Pipeline
+# AI Model Advisor
 
-4-agent system that uses **Google Custom Search API** (live web) + **Gemini 2.5 Flash** (reasoning)
-to recommend the best AI model for any use case. Refactored into a **Multi-Agent microservice architecture** for Cloud Run.
+A Spring Boot 3.4 Java application that recommends AI models for a user-supplied use case through a four-agent pipeline. The app uses the Google Gemini REST API with `gemini-2.5-flash`; the search stage uses Gemini's native Google Search grounding rather than a separate Google Custom Search API integration.
 
-```
-IntakeAgent  ->  SearchAgent  ->  AnalysisAgent  ->  RecommendationAgent
-    [1]             [2]               [3]                 [4]
- Parse input   Google Search      Score models        Final output
- [REST API]      [REST API]         [REST API]          [REST API]
+```text
+IntakeAgent -> SearchAgent -> AnalysisAgent -> RecommendationAgent
+    1             2              3                  4
+ Parse input   Grounded web   Score models      Final pick
 ```
 
-## Architecture Refactor
+## What It Does
 
-The project has been refactored from a single monolithic application into a multi-agent system where each agent is an independent REST service.
+Given a natural-language use case, the application:
 
-- **A2A Protocol**: Agents communicate via typed JSON payloads over HTTP POST.
-- **Microservices**: Each agent can be run as a standalone service (using Spring Boot).
-- **Orchestrator**: `AdvisorPipeline.java` remains the entry point, coordinating the multi-agent chain via HTTP calls.
-- **Cloud Portable**: Containerized with Docker and ready for Google Cloud Run.
+1. Converts the use case into structured requirements.
+2. Uses Gemini with Google Search grounding to discover current model candidates.
+3. Scores candidates across capability, speed, cost, and ecosystem fit.
+4. Produces a structured recommendation with a primary pick, runner-up, budget pick, dark horse, decision framework, cost estimate, and data disclaimer.
 
-## Prerequisites
+## Tech Stack
 
-- Java 17+
-- Gradle 9+
-- Google API key with Gemini API access
-- Google Cloud project with Custom Search JSON API enabled
-- A configured Google Programmable Search Engine
+- Java 17
+- Gradle
+- Spring Boot 3.4
+- OkHttp
+- Gson
+- Google Gemini `generateContent` API
+- Docker
 
-## Running the Multi-Agent App
+## Configuration
 
-### 1. Start the Agents (Local)
+The only required API configuration is:
 
-You can run the entire system locally using the Spring Boot application. By default, it exposes all agent endpoints.
+```powershell
+$env:GOOGLE_API_KEY = "your-google-api-key"
+```
+
+On macOS or Linux:
 
 ```bash
+export GOOGLE_API_KEY="your-google-api-key"
+```
+
+The app reads the following optional environment variables:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PORT` | `8080` | Spring server port, read through `application.properties`. |
+| `AGENT_TYPE` | unset | Restricts a service to one agent controller. Valid values: `intake`, `search`, `analysis`, `recommendation`. When unset, all agent controllers are enabled. |
+| `INTAKE_AGENT_URL` | `http://localhost:8080/intake/process` | Pipeline URL for the intake agent. |
+| `SEARCH_AGENT_URL` | `http://localhost:8080/search/process` | Pipeline URL for the search agent. |
+| `ANALYSIS_AGENT_URL` | `http://localhost:8080/analysis/process` | Pipeline URL for the analysis agent. |
+| `RECOMMENDATION_AGENT_URL` | `http://localhost:8080/recommendation/process` | Pipeline URL for the recommendation agent. |
+
+Spring Boot's relaxed binding maps `AGENT_TYPE` to the `agent.type` property used by the controllers.
+
+## Running Locally
+
+Start the Spring Boot service:
+
+```powershell
 gradle bootRun
 ```
 
-This starts the server on `http://localhost:8080`.
+Then call the full pipeline over HTTP:
 
-### 2. Run the Pipeline (Entry Point)
-
-With the agents running, use the `AdvisorPipeline` to drive the workflow.
-
-```bash
-# Interactive mode
-java -cp build/libs/ai-model-advisor-1.0.0.jar com.devcamp.advisor.pipeline.AdvisorPipeline
+```powershell
+Invoke-RestMethod "http://localhost:8080/run?useCase=RAG%20chatbot%20over%20internal%20docs%2C%20500%20queries%20per%20day%2C%20under%202s%20latency%2C%20startup%20budget"
 ```
 
-## Deployment to Google Cloud Run
+You can also run the console pipeline:
 
-Each agent can be deployed as an individual Cloud Run service.
-
-### Dockerize
-
-```bash
-docker build -t gcr.io/[PROJECT_ID]/advisor-agent .
+```powershell
+gradle run --args="RAG chatbot over internal docs, 500 queries/day, under 2s latency, startup budget"
 ```
 
-### Deploying Individual Agents
+If no arguments are provided to `gradle run`, the console app prompts for a use case and falls back to a built-in example when the input is blank.
 
-Set the `AGENT_TYPE` environment variable to restrict a service to a specific agent's functionality.
+## HTTP API
 
-1. **Intake Agent**: `gcloud run deploy intake --image ... --set-env-vars AGENT_TYPE=intake`
-2. **Search Agent**: `gcloud run deploy search --image ... --set-env-vars AGENT_TYPE=search`
-3. **Analysis Agent**: `gcloud run deploy analysis --image ... --set-env-vars AGENT_TYPE=analysis`
-4. **Recommendation Agent**: `gcloud run deploy recommendation --image ... --set-env-vars AGENT_TYPE=recommendation`
+### Full Pipeline
 
-### Configuring the Pipeline
+```http
+GET /run?useCase=<description>
+```
 
-Once deployed, set the following environment variables for the service running the `AdvisorPipeline`:
+Returns a `Recommendation` JSON object.
 
-- `INTAKE_AGENT_URL`
-- `SEARCH_AGENT_URL`
-- `ANALYSIS_AGENT_URL`
-- `RECOMMENDATION_AGENT_URL`
+### Individual Agent Endpoints
 
-## Architecture Components
+```http
+POST /intake/process
+Content-Type: application/json
 
-| File | Role |
-|------|------|
-| `AdvisorApplication.java` | Spring Boot main entry point for agents |
-| `IntakeController.java` | REST Controller for Agent 1 |
-| `SearchController.java` | REST Controller for Agent 2 |
-| `AnalysisController.java` | REST Controller for Agent 3 |
-| `RecommendationController.java` | REST Controller for Agent 4 |
-| `AdvisorPipeline.java` | Orchestrator - coordinates HTTP calls between agents |
-| `AgentRequests.java` | Multi-input request DTOs for the A2A protocol |
-| `AgentModels.java` | Core data contracts |
-| `Dockerfile` | Multi-agent container definition |
+{
+  "useCase": "RAG chatbot over internal docs, 500 queries/day, under 2s latency"
+}
+```
 
-## API Costs
-... (rest of the content)
+```http
+POST /search/process
+Content-Type: application/json
+
+{
+  "useCaseSummary": "...",
+  "primaryTask": "search_rag",
+  "contextWindowNeeded": "large_128k",
+  "latencySensitivity": "interactive",
+  "costSensitivity": "balanced",
+  "multimodalNeeded": false,
+  "toolUseNeeded": true,
+  "openSourcePreferred": false,
+  "selfHostNeeded": false,
+  "volume": "medium",
+  "deploymentTarget": "cloud_api",
+  "searchQueries": ["..."],
+  "keyRequirements": ["..."]
+}
+```
+
+```http
+POST /analysis/process
+Content-Type: application/json
+
+{
+  "requirements": { },
+  "findings": { }
+}
+```
+
+```http
+POST /recommendation/process
+Content-Type: application/json
+
+{
+  "requirements": { },
+  "findings": { },
+  "analysis": { }
+}
+```
+
+The individual endpoint contracts are defined in `src/main/java/com/devcamp/advisor/model/AgentModels.java` and `src/main/java/com/devcamp/advisor/model/AgentRequests.java`.
+
+## Project Structure
+
+| Path | Purpose |
+| --- | --- |
+| `src/main/java/com/devcamp/advisor/AdvisorApplication.java` | Spring Boot entry point and bean wiring. |
+| `src/main/java/com/devcamp/advisor/config/AppConfig.java` | Environment-backed Gemini configuration. |
+| `src/main/java/com/devcamp/advisor/util/DefaultModel.java` | Shared Gemini REST client and JSON helper. |
+| `src/main/java/com/devcamp/advisor/agent/IntakeAgent.java` | Converts free text use cases into structured requirements. |
+| `src/main/java/com/devcamp/advisor/agent/SearchAgent.java` | Performs grounded web discovery and extracts model candidates. |
+| `src/main/java/com/devcamp/advisor/agent/AnalysisAgent.java` | Scores candidates against the requirements. |
+| `src/main/java/com/devcamp/advisor/agent/RecommendationAgent.java` | Produces the final recommendation object. |
+| `src/main/java/com/devcamp/advisor/controller/*Controller.java` | HTTP endpoints for the pipeline and each agent. |
+| `src/main/java/com/devcamp/advisor/pipeline/AdvisorPipeline.java` | HTTP orchestrator and console entry point. |
+| `src/main/resources/application.properties` | Server port and logging defaults. |
+| `build.gradle` | Gradle build, application, and Spring Boot configuration. |
+| `Dockerfile` | Multi-stage container build for the Spring Boot app. |
+
+## Docker
+
+Build the container:
+
+```powershell
+docker build -t ai-model-advisor .
+```
+
+Run all agent endpoints in one service:
+
+```powershell
+docker run --rm -p 8080:8080 -e GOOGLE_API_KEY="your-google-api-key" ai-model-advisor
+```
+
+Run a single agent endpoint:
+
+```powershell
+docker run --rm -p 8081:8080 `
+  -e GOOGLE_API_KEY="your-google-api-key" `
+  -e AGENT_TYPE="intake" `
+  ai-model-advisor
+```
+
+## Cloud Run Deployment
+
+The same container can run either the full service or one agent controller. For separate Cloud Run services, deploy the image multiple times with different `AGENT_TYPE` values:
+
+```bash
+gcloud run deploy intake \
+  --image gcr.io/PROJECT_ID/ai-model-advisor \
+  --set-env-vars GOOGLE_API_KEY=YOUR_KEY,AGENT_TYPE=intake
+```
+
+Repeat with `AGENT_TYPE=search`, `AGENT_TYPE=analysis`, and `AGENT_TYPE=recommendation`.
+
+For the service that exposes `/run`, set the remote agent URLs so `AdvisorPipeline` calls the deployed services:
+
+```bash
+gcloud run deploy advisor-pipeline \
+  --image gcr.io/PROJECT_ID/ai-model-advisor \
+  --set-env-vars GOOGLE_API_KEY=YOUR_KEY,INTAKE_AGENT_URL=https://intake-url/intake/process,SEARCH_AGENT_URL=https://search-url/search/process,ANALYSIS_AGENT_URL=https://analysis-url/analysis/process,RECOMMENDATION_AGENT_URL=https://recommendation-url/recommendation/process
+```
+
+## Build and Test
+
+Build the project:
+
+```powershell
+gradle build
+```
+
+Run tests:
+
+```powershell
+gradle test
+```
+
+The build declares JUnit and Spring Boot test dependencies, but this repository currently does not include test source files.
+
+## Notes
+
+- `GOOGLE_API_KEY` is required at application startup because `AppConfig` validates it during bean creation.
+- Grounded search happens inside `SearchAgent` through Gemini's `google_search` tool configuration.
+- The pipeline communicates with agents over JSON HTTP calls even when everything runs in the same Spring Boot process.
+- The Dockerfile uses `gradle:8.5-jdk17` for the build stage and `openjdk:17-jdk-slim` for runtime.

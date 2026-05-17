@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Scanner;
+import java.util.concurrent.TimeUnit;
 
 /**
  * AdvisorPipeline — top-level orchestrator.
@@ -41,7 +42,10 @@ public class AdvisorPipeline {
 
     public AdvisorPipeline() {
         this.defaultModel = new DefaultModel();
-        this.httpClient = new okhttp3.OkHttpClient();
+        this.httpClient = new okhttp3.OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(120, TimeUnit.SECONDS)
+                .build();
 
         // Load URLs from env vars or use localhost defaults for local dev
         this.intakeUrl         = getEnv("INTAKE_AGENT_URL",         "http://localhost:8080/intake/process");

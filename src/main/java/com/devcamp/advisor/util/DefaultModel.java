@@ -35,7 +35,7 @@ public class DefaultModel {
     public DefaultModel() {
         this.httpClient = new OkHttpClient.Builder()
                 .connectTimeout(10, TimeUnit.SECONDS)
-                .readTimeout(60, TimeUnit.SECONDS)
+                .readTimeout(120, TimeUnit.SECONDS)
                 .build();
         this.gson = new GsonBuilder().setPrettyPrinting().create();
     }

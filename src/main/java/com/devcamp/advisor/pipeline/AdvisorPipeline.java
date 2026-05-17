@@ -152,7 +152,7 @@ public class AdvisorPipeline {
                                (r.primary.openSource ? "  [OPEN SOURCE]" : ""));
             System.out.println("    " + r.primary.tagline);
             if (r.primary.axes != null) {
-                System.out.printf("    Scores → Capability: %d  Speed: %d  Cost: %d  Ecosystem: %d%n",
+                System.out.printf("    Scores → Capability: %.1f  Speed: %.1f  Cost: %.1f  Ecosystem: %.1f%n",
                         r.primary.axes.capability, r.primary.axes.speed,
                         r.primary.axes.costEfficiency, r.primary.axes.ecosystemFit);
             }

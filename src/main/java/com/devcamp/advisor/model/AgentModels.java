@@ -75,11 +75,11 @@ public class AgentModels {
             public String provider;
             public String country;
             public boolean openSource;
-            public int capabilityFit;    // 0-100
-            public int speedFit;         // 0-100
-            public int costFit;          // 0-100
-            public int ecosystemFit;     // 0-100
-            public int compositeScore;   // 0-100
+            public double capabilityFit;    // 0-100
+            public double speedFit;         // 0-100
+            public double costFit;          // 0-100
+            public double ecosystemFit;     // 0-100
+            public double compositeScore;   // 0-100
             public String whyFits;
             public String keyTradeOff;
         }
@@ -108,10 +108,10 @@ public class AgentModels {
             public String watchOut;
 
             public static class Axes {
-                public int capability;
-                public int speed;
-                public int costEfficiency;
-                public int ecosystemFit;
+                public double capability;
+                public double speed;
+                public double costEfficiency;
+                public double ecosystemFit;
             }
         }
 

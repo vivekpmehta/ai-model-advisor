@@ -28,7 +28,9 @@ import java.util.Scanner;
  *
  * Run with:
  *   export GOOGLE_API_KEY=AIza...
- *   export GOOGLE_SEARCH_ENGINE_ID=abc123...
+ *   export GOOGLE_PROJECT_ID=my-project
+ *   export VERTEX_DATA_STORE_ID=my-ds-123
+ *   export GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json
  *   ./gradlew run
  */
 public class AdvisorPipeline {
@@ -85,7 +87,7 @@ public class AdvisorPipeline {
         System.out.println("  Queries:  " + requirements.searchQueries);
 
         // ── AGENT 2: Search ──────────────────────────────────────────────────
-        System.out.println("\n[2/4] SEARCH AGENT — querying Google Custom Search API...");
+        System.out.println("\n[2/4] SEARCH AGENT — querying Vertex AI Search...");
         SearchFindings findings = post(searchUrl, requirements, SearchFindings.class);
         System.out.println("  Models found: " +
                 (findings.modelsFound != null ? findings.modelsFound.size() : 0));

@@ -85,19 +85,19 @@ public class SearchAgent {
     }
 
     /**
-     * Execute Google searches and extract discovered AI models.
+     * Execute searches against Vertex AI Search and extract discovered AI models.
      *
      * @param requirements structured requirements from IntakeAgent (contains search queries)
      * @return SearchFindings with all discovered model candidates
      */
     public SearchFindings process(UseCaseRequirements requirements) {
-        log.info("◎ SEARCH AGENT — executing Google searches...");
+        log.info("◎ SEARCH AGENT — executing Vertex AI Search queries...");
 
-        // Step 1: Execute all queries against Google Custom Search API
+        // Step 1: Execute all queries against Vertex AI Search
         List<String> queries = requirements.searchQueries;
         if (queries == null || queries.isEmpty()) {
             log.warn("  No search queries from Intake Agent — using fallback query");
-            queries = List.of("best LLM AI model 2025 benchmark comparison");
+            queries = List.of("best LLM AI model 2026 benchmark comparison");
         }
 
         // Enforce max query limit to manage API quota (100 free/day)
@@ -109,10 +109,10 @@ public class SearchAgent {
                 queries, AppConfig.SEARCH_RESULTS_PER_QUERY
         );
 
-        log.info("  ✓ Google returned {} total results", searchResults.size());
+        log.info("  ✓ Vertex AI Search returned {} total results", searchResults.size());
 
         if (searchResults.isEmpty()) {
-            log.warn("  No search results returned. Check API key, Search Engine ID, and quota.");
+            log.warn("  No search results returned. Check ADC, Project ID, and Data Store ID.");
             return emptyFindings();
         }
 
@@ -172,9 +172,9 @@ public class SearchAgent {
 
     private SearchFindings emptyFindings() {
         SearchFindings f = new SearchFindings();
-        f.searchSummary    = "No search results returned from Google Custom Search API.";
+        f.searchSummary    = "No search results returned from Vertex AI Search.";
         f.modelsFound      = List.of();
-        f.notableFindings  = "Search returned no results. Check API credentials and quota.";
+        f.notableFindings  = "Search returned no results. Check Google Cloud credentials and Data Store configuration.";
         f.dataFreshness    = "N/A";
         return f;
     }

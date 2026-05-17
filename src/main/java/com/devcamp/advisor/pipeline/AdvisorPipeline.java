@@ -7,7 +7,6 @@ import com.devcamp.advisor.agent.SearchAgent;
 import com.devcamp.advisor.model.AgentModels.*;
 import com.devcamp.advisor.model.AgentRequests.*;
 import com.devcamp.advisor.util.DefaultModel;
-import com.devcamp.advisor.util.GoogleSearchClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,17 +19,10 @@ import java.util.Scanner;
  *
  *   IntakeAgent  →  SearchAgent  →  AnalysisAgent  →  RecommendationAgent
  *       [1]             [2]               [3]                 [4]
- *   Parse input    Google Search      Score models        Final output
- *
- * Analogy:
- *   This is your Airflow DAG definition file — it doesn't do the work,
- *   it just wires the tasks and passes data between them in order.
+ *   Parse input    Gemini Grounding   Score models        Final output
  *
  * Run with:
  *   export GOOGLE_API_KEY=AIza...
- *   export GOOGLE_PROJECT_ID=my-project
- *   export VERTEX_DATA_STORE_ID=my-ds-123
- *   export GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json
  *   ./gradlew run
  */
 public class AdvisorPipeline {
@@ -84,10 +76,10 @@ public class AdvisorPipeline {
         System.out.println("  Task:     " + requirements.primaryTask);
         System.out.println("  Latency:  " + requirements.latencySensitivity);
         System.out.println("  Cost:     " + requirements.costSensitivity);
-        System.out.println("  Queries:  " + requirements.searchQueries);
+        System.out.println("  Queries:  " + (requirements.searchQueries != null ? requirements.searchQueries.size() : 0) + " generated");
 
         // ── AGENT 2: Search ──────────────────────────────────────────────────
-        System.out.println("\n[2/4] SEARCH AGENT — querying Vertex AI Search...");
+        System.out.println("\n[2/4] SEARCH AGENT — performing native Gemini grounding...");
         SearchFindings findings = post(searchUrl, requirements, SearchFindings.class);
         System.out.println("  Models found: " +
                 (findings.modelsFound != null ? findings.modelsFound.size() : 0));
@@ -199,7 +191,7 @@ public class AdvisorPipeline {
         return """
                ═══════════════════════════════════════════════════════════════════
                  AI MODEL ADVISOR — 4-Agent Pipeline
-                 IntakeAgent → SearchAgent (Google) → AnalysisAgent → RecommendationAgent
+                 IntakeAgent → SearchAgent (Grounding) → AnalysisAgent → RecommendationAgent
                ═══════════════════════════════════════════════════════════════════
                """;
     }

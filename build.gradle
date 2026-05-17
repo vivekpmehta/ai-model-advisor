@@ -34,9 +34,6 @@ dependencies {
     // JSON parsing
     implementation 'com.google.code.gson:gson:2.11.0'
 
-    // Google Auth library for Vertex AI Search tokens
-    implementation 'com.google.auth:google-auth-library-oauth2-http:1.23.0'
-
     // Logging
     implementation 'org.slf4j:slf4j-api:2.0.9'
     implementation 'ch.qos.logback:logback-classic:1.4.14'

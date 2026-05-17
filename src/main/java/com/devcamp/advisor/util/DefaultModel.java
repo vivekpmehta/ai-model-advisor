@@ -53,9 +53,17 @@ public class DefaultModel {
      * Returns the raw text response.
      */
     public String chat(String systemPrompt, String userMessage) {
-        log.debug("-> Gemini [{}...] | user: {}...",
+        return chat(systemPrompt, userMessage, false);
+    }
+
+    /**
+     * Overloaded chat with Google Search grounding support.
+     */
+    public String chat(String systemPrompt, String userMessage, boolean useGrounding) {
+        log.debug("-> Gemini [{}...] | user: {}... | grounding: {}",
                 systemPrompt.substring(0, Math.min(60, systemPrompt.length())),
-                userMessage.substring(0, Math.min(80, userMessage.length())));
+                userMessage.substring(0, Math.min(80, userMessage.length())),
+                useGrounding);
 
         HttpUrl url = HttpUrl.parse(AppConfig.GEMINI_GENERATE_CONTENT_URL).newBuilder()
                 .addQueryParameter("key", AppConfig.GOOGLE_API_KEY)
@@ -63,7 +71,7 @@ public class DefaultModel {
 
         Request request = new Request.Builder()
                 .url(url)
-                .post(RequestBody.create(buildRequestBody(systemPrompt, userMessage), JSON))
+                .post(RequestBody.create(buildRequestBody(systemPrompt, userMessage, useGrounding), JSON))
                 .build();
 
         try (Response response = httpClient.newCall(request).execute()) {
@@ -86,7 +94,14 @@ public class DefaultModel {
      * Strips any markdown fences Gemini might wrap around JSON.
      */
     public <T> T chatAsJson(String systemPrompt, String userMessage, Class<T> type) {
-        String raw = chat(systemPrompt, userMessage);
+        return chatAsJson(systemPrompt, userMessage, type, false);
+    }
+
+    /**
+     * Overloaded chatAsJson with Google Search grounding support.
+     */
+    public <T> T chatAsJson(String systemPrompt, String userMessage, Class<T> type, boolean useGrounding) {
+        String raw = chat(systemPrompt, userMessage, useGrounding);
         String cleaned = stripJsonFences(raw);
         try {
             return gson.fromJson(cleaned, type);
@@ -96,7 +111,7 @@ public class DefaultModel {
         }
     }
 
-    private String buildRequestBody(String systemPrompt, String userMessage) {
+    private String buildRequestBody(String systemPrompt, String userMessage, boolean useGrounding) {
         JsonObject root = new JsonObject();
 
         JsonObject systemInstruction = new JsonObject();
@@ -118,9 +133,19 @@ public class DefaultModel {
         contents.add(userContent);
         root.add("contents", contents);
 
+        if (useGrounding) {
+            JsonArray tools = new JsonArray();
+            JsonObject googleSearch = new JsonObject();
+            googleSearch.add("google_search", new JsonObject());
+            tools.add(googleSearch);
+            root.add("tools", tools);
+        }
+
         JsonObject generationConfig = new JsonObject();
         generationConfig.addProperty("temperature", 0.2);
-        generationConfig.addProperty("responseMimeType", "application/json");
+        if (!useGrounding) {
+            generationConfig.addProperty("responseMimeType", "application/json");
+        }
         root.add("generationConfig", generationConfig);
 
         return gson.toJson(root);

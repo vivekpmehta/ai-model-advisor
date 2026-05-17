@@ -1,60 +1,52 @@
 package com.devcamp.advisor.agent;
 
-import com.devcamp.advisor.config.AppConfig;
 import com.devcamp.advisor.model.AgentModels.SearchFindings;
 import com.devcamp.advisor.model.AgentModels.UseCaseRequirements;
 import com.devcamp.advisor.util.DefaultModel;
-import com.devcamp.advisor.util.GoogleSearchClient;
-import com.devcamp.advisor.util.GoogleSearchClient.SearchResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * AGENT 2 — Search Agent
+ * AGENT 2 — Search Agent (Upgraded to Native Gemini Grounding)
  *
  * Responsibility:
- *   1. Receives search queries from the Intake Agent
- *   2. Executes them against Google Custom Search JSON API (live web)
- *   3. Feeds the raw search results to Gemini, which extracts a structured
- *      list of discovered AI model candidates
+ *   1. Receives requirements from the Intake Agent
+ *   2. Uses Gemini's native "Grounding with Google Search" tool to find real-time model data
+ *   3. Extracts a structured list of discovered AI model candidates
  *
- * This is the only agent that calls Google Search. All agents use Gemini for reasoning.
- *
- * Analogy:
- *   Think of this as a two-step ETL step in your Airflow DAG —
- *   first Extract (Google Search), then Transform (Gemini interprets the snippets).
- *   The result is a clean, structured list loaded for the next agent to consume.
- *
- * A2A contract:
- *   Input  → UseCaseRequirements (for context + queries)
- *   Output → SearchFindings      (passed to AnalysisAgent)
+ * NOTE: This agent no longer requires a separate Google Search API key.
+ * It leverages Gemini's built-in capability to browse the live web.
  */
 public class SearchAgent {
 
     private static final Logger log = LoggerFactory.getLogger(SearchAgent.class);
 
-    private static final String SYSTEM_PROMPT = """
-        You are the Search Agent in a 4-agent AI Model Advisor pipeline.
+    private static final String GROUNDING_PROMPT = """
+        You are the Search Agent. Your job is to search the live web for AI model candidates 
+        relevant to the provided use case. 
+        
+        Use your GOOGLE_SEARCH tool to find:
+        1. Exact model names and their providers.
+        2. Key capabilities, context windows, and pricing tiers.
+        3. Strengths and limitations for the specific use case.
+        
+        Provide a detailed textual summary of your findings.
+        """;
 
-        You will receive:
-        1. A use case requirements summary
-        2. Raw Google search results (titles + snippets + URLs)
-
-        Your job: extract a comprehensive, unbiased list of AI model candidates
-        that appear in the search results, relevant to the described use case.
+    private static final String EXTRACTION_PROMPT = """
+        You are the Search Agent. You will receive raw search findings from a web-grounded search.
+        Convert these findings into a structured JSON list of model candidates.
 
         Rules:
-        - Include models from ALL global providers: US, Chinese, European, open-source
-        - Do NOT filter or rank — just extract factual data found in the snippets
-        - If pricing or benchmark data appears in snippets, include it in strengths/limitations
-        - Be honest about what was and wasn't found; note data freshness
+        - Include between 8 and 14 models.
+        - Actively include non-US models (Chinese, European, Open-Source).
+        - Extract factual data: context window, pricing tier, latency profile, strengths, and limitations.
 
         Output ONLY valid JSON. No markdown. No explanation:
         {
-          "searchSummary": "2 sentences summarising what the searches found",
+          "searchSummary": "2 sentences summarising what was found on the web",
           "modelsFound": [
             {
               "name": "model name",
@@ -66,66 +58,40 @@ public class SearchAgent {
               "latencyProfile": "one of: very_fast, fast, medium, slow, unknown",
               "strengths": ["strength 1 relevant to use case", "strength 2"],
               "limitations": ["limitation 1", "limitation 2"],
-              "sourceHint": "brief note e.g. appeared in benchmark comparison on X site"
+              "sourceHint": "brief note e.g. from official benchmark on site X"
             }
           ],
           "notableFindings": "any surprising or important findings",
-          "dataFreshness": "note on how current the data appears to be"
+          "dataFreshness": "current date or note on data age"
         }
-
-        Return between 6 and 14 models. Actively include non-US models if found.
         """;
 
     private final DefaultModel model;
-    private final GoogleSearchClient googleSearch;
 
-    public SearchAgent(DefaultModel model, GoogleSearchClient googleSearch) {
-        this.model        = model;
-        this.googleSearch = googleSearch;
+    public SearchAgent(DefaultModel model) {
+        this.model = model;
     }
 
     /**
-     * Execute searches against Vertex AI Search and extract discovered AI models.
-     *
-     * @param requirements structured requirements from IntakeAgent (contains search queries)
-     * @return SearchFindings with all discovered model candidates
+     * Use Gemini Grounding in two steps to discover AI models.
+     * Step 1: Grounded search (text response).
+     * Step 2: Extraction/formatting (JSON response).
      */
     public SearchFindings process(UseCaseRequirements requirements) {
-        log.info("◎ SEARCH AGENT — executing Vertex AI Search queries...");
+        log.info("◎ SEARCH AGENT — performing native Gemini grounding with Google Search...");
 
-        // Step 1: Execute all queries against Vertex AI Search
-        List<String> queries = requirements.searchQueries;
-        if (queries == null || queries.isEmpty()) {
-            log.warn("  No search queries from Intake Agent — using fallback query");
-            queries = List.of("best LLM AI model 2026 benchmark comparison");
-        }
+        String userMessage = buildUserMessage(requirements);
 
-        // Enforce max query limit to manage API quota (100 free/day)
-        if (queries.size() > AppConfig.MAX_SEARCH_QUERIES) {
-            queries = queries.subList(0, AppConfig.MAX_SEARCH_QUERIES);
-        }
+        // Step 1: Perform the search with grounding (Tool use + text response)
+        log.info("  -> Step 1: Performing web-grounded discovery (text phase)...");
+        String rawFindings = model.chat(GROUNDING_PROMPT, userMessage, true);
 
-        List<SearchResult> searchResults = googleSearch.searchMultiple(
-                queries, AppConfig.SEARCH_RESULTS_PER_QUERY
-        );
+        // Step 2: Format the raw findings into structured JSON (No tool use + JSON response)
+        log.info("  -> Step 2: Extracting structured data from search results (JSON phase)...");
+        String extractionMessage = "RAW FINDINGS:\n" + rawFindings + "\n\nUSE CASE:\n" + userMessage;
+        SearchFindings findings = model.chatAsJson(EXTRACTION_PROMPT, extractionMessage, SearchFindings.class);
 
-        log.info("  ✓ Vertex AI Search returned {} total results", searchResults.size());
-
-        if (searchResults.isEmpty()) {
-            log.warn("  No search results returned. Check ADC, Project ID, and Data Store ID.");
-            return emptyFindings();
-        }
-
-        // Step 2: Feed raw snippets to Gemini for structured extraction
-        // Gemini reads the text and identifies model names, capabilities, pricing
-        String searchResultsText = formatSearchResults(searchResults);
-        String userMessage = buildUserMessage(requirements, searchResultsText);
-
-        log.info("  -> Sending {} search snippets to Gemini for model extraction...", searchResults.size());
-
-        SearchFindings findings = model.chatAsJson(SYSTEM_PROMPT, userMessage, SearchFindings.class);
-
-        log.info("  ✓ Extracted {} model candidates: {}",
+        log.info("  ✓ Grounded discovery found {} model candidates: {}",
                 findings.modelsFound != null ? findings.modelsFound.size() : 0,
                 findings.modelsFound != null
                         ? findings.modelsFound.stream()
@@ -135,47 +101,21 @@ public class SearchAgent {
         return findings;
     }
 
-    /**
-     * Format search results into a readable block for Gemini's context window.
-     */
-    private String formatSearchResults(List<SearchResult> results) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < results.size(); i++) {
-            SearchResult r = results.get(i);
-            sb.append("[Result ").append(i + 1).append("]\n");
-            sb.append("Title:   ").append(r.title).append("\n");
-            sb.append("URL:     ").append(r.link).append("\n");
-            sb.append("Snippet: ").append(r.snippet).append("\n\n");
-        }
-        return sb.toString();
-    }
-
-    private String buildUserMessage(UseCaseRequirements req, String searchText) {
+    private String buildUserMessage(UseCaseRequirements req) {
         return """
                USE CASE SUMMARY: %s
                PRIMARY TASK: %s
                COST SENSITIVITY: %s
                LATENCY SENSITIVITY: %s
                SELF-HOST NEEDED: %s
-
-               GOOGLE SEARCH RESULTS:
-               %s
+               
+               Please search the web for the best AI model candidates for this specific use case.
                """.formatted(
                 req.useCaseSummary,
                 req.primaryTask,
                 req.costSensitivity,
                 req.latencySensitivity,
-                req.selfHostNeeded,
-                searchText
+                req.selfHostNeeded
         );
-    }
-
-    private SearchFindings emptyFindings() {
-        SearchFindings f = new SearchFindings();
-        f.searchSummary    = "No search results returned from Vertex AI Search.";
-        f.modelsFound      = List.of();
-        f.notableFindings  = "Search returned no results. Check Google Cloud credentials and Data Store configuration.";
-        f.dataFreshness    = "N/A";
-        return f;
     }
 }

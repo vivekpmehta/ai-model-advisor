@@ -1,0 +1,7 @@
+Overnight batch processing of 300-page legal contracts for risk clause extraction
+
+Real-time coding assistant inside VS Code, handles large files, privacy-sensitive enterprise
+
+Multimodal customer support reading screenshots + text, 50k messages/day, must be cost-efficient
+
+Edge-deployed local model for sensitive medical records summarization, no cloud allowed

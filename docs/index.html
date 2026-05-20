@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AI Model Advisor Demo</title>
-  <meta name="description" content="Demo screenshots for the AI Model Advisor four-agent Gemini pipeline.">
+  <title>AI Model Advisor | From Use Case to Model Decision</title>
+  <meta name="description" content="An early AI decision-support system that turns product requirements into grounded model recommendations.">
   <style>
     :root {
       color-scheme: light;
@@ -234,10 +234,10 @@
 <body>
   <header>
     <div class="wrap hero">
-      <div class="eyebrow">Demo screenshots</div>
-      <h1>AI Model Advisor: four-agent Gemini pipeline</h1>
+      <div class="eyebrow">Early product concept</div>
+      <h1>AI Model Advisor: turning AI use cases into model decisions</h1>
       <p class="summary">
-        A Spring Boot app that turns a plain-English AI use case into a current model recommendation using intake, grounded search, scoring, and final synthesis agents.
+        AI Model Advisor is an early-stage decision system for teams evaluating which AI model to use. It translates a plain-English use case into structured requirements, researches current model options, scores the trade-offs, and produces a practical recommendation with reasoning.
       </p>
       <div class="meta" aria-label="Project technology highlights">
         <span class="tag">Java 17</span>
@@ -250,17 +250,17 @@
   </header>
 
   <main class="wrap">
-    <section class="intro" aria-label="Demo overview">
+    <section class="intro" aria-label="Product concept overview">
       <div class="panel">
-        <h2>What the demo shows</h2>
+        <h2>The idea</h2>
         <p>
-          These screenshots capture the full local Cloud Shell run: the Spring Boot service starts, the user runs the advisor pipeline, Gemini searches and scores model candidates, and the app returns a practical recommendation for a RAG chatbot use case.
+          Choosing an AI model is becoming a product decision, not just an engineering detail. This prototype explores how a multi-agent workflow can support that decision by combining intake, grounded discovery, comparative scoring, and final recommendation synthesis.
         </p>
         <ol>
-          <li>Orchestrator service starts and logs each agent handoff.</li>
-          <li>User run parses requirements and discovers model candidates.</li>
-          <li>Recommendation output explains the primary pick and trade-offs.</li>
-          <li>Build completes successfully after the pipeline run.</li>
+          <li>Capture the use case and decision constraints.</li>
+          <li>Discover current model candidates with grounded search.</li>
+          <li>Score options across cost, latency, capability, and fit.</li>
+          <li>Explain the recommendation in language a product or engineering team can act on.</li>
         </ol>
       </div>
 
@@ -278,32 +278,32 @@
     <section class="gallery" aria-label="Screenshot gallery">
       <figure>
         <figcaption>
-          <strong>1. Orchestrator and agent logs</strong>
-          <span>The Spring Boot service is running, and logs show the intake, search, analysis, and recommendation agents completing their work.</span>
+          <strong>1. Multi-agent orchestration</strong>
+          <span>The system coordinates intake, discovery, analysis, and recommendation agents as separate decision stages.</span>
         </figcaption>
         <img class="shot" src="images/1-orchestrator-output.png" alt="Cloud Shell terminal showing Spring Boot startup and AI Model Advisor agent logs">
       </figure>
 
       <figure>
         <figcaption>
-          <strong>2. User pipeline run starts</strong>
-          <span>The console run uses the default RAG chatbot use case, parses requirements, performs grounded search, and lists discovered model candidates.</span>
+          <strong>2. Requirement understanding and discovery</strong>
+          <span>A plain-English RAG chatbot use case is converted into structured requirements and matched against current model candidates.</span>
         </figcaption>
         <img class="shot" src="images/2.1-user-output.png" alt="Cloud Shell terminal showing AI Model Advisor pipeline startup, intake results, search results, and analysis summary">
       </figure>
 
       <figure>
         <figcaption>
-          <strong>3. Recommendation details</strong>
-          <span>The final response recommends Gemma 3 1B for a low-cost, low-latency RAG chatbot and shows runner-up, budget, and decision guidance.</span>
+          <strong>3. Recommendation reasoning</strong>
+          <span>The advisor explains the primary recommendation, runner-up options, cost considerations, and decision trade-offs.</span>
         </figcaption>
         <img class="shot" src="images/2.2-user-output.png" alt="Cloud Shell terminal showing final AI model recommendation details">
       </figure>
 
       <figure>
         <figcaption>
-          <strong>4. Successful completion</strong>
-          <span>The run finishes with the decision framework, cost estimate, pipeline duration, Gradle warnings, and a successful build.</span>
+          <strong>4. End-to-end validation</strong>
+          <span>The workflow completes as a working Spring Boot service, showing the concept is already executable rather than just theoretical.</span>
         </figcaption>
         <img class="shot" src="images/2.3-user-output.png" alt="Cloud Shell terminal showing completed recommendation output and build successful message">
       </figure>
@@ -312,7 +312,7 @@
 
   <footer>
     <div class="wrap">
-      AI Model Advisor demo page.
+      AI Model Advisor - an early exploration of AI model decision support.
     </div>
   </footer>
 </body>

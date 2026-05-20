@@ -2,12 +2,18 @@
 
 A Spring Boot 3.4 Java application that recommends AI models for a user-supplied use case through a four-agent pipeline. The app uses the Google Gemini REST API with `gemini-2.5-flash`; the search stage uses Gemini's native Google Search grounding rather than a separate Google Custom Search API integration.
 
-```text
-IntakeAgent -> SearchAgent -> AnalysisAgent -> RecommendationAgent
-    1             2              3                  4
- Parse input   Grounded web   Score models      Final pick
-```
+```mermaid
+graph TD
+    Input([User Use Case & Requirements]) --> Agent1[1. Intake Agent]
+    
+    subgraph Pipeline [4-Agent Orchestration Pipeline]
+        Agent1 -->|Parses Specs & Constraints| Agent2[2. Grounded Search Agent]
+        Agent2 -->|Fetches Live Model Data via Gemini| Agent3[3. Analysis Agent]
+        Agent3 -->|Evaluates Cost, Latency & Ecosystem Fit| Agent4[4. Recommendation Agent]
+    end
 
+    Agent4 -->|Generates Reasoned Report| Output[/Final Model Selection & Architecture Blueprint/]
+```
 ## What It Does
 
 Given a natural-language use case, the application:
